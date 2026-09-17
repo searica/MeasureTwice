@@ -23,7 +23,7 @@ internal sealed class MeasureTwice : BaseUnityPlugin
     public const string PluginName = "MeasureTwice";
     internal const string Author = "Searica";
     public const string PluginGUID = $"{Author}.Valheim.{PluginName}";
-    public const string PluginVersion = "0.1.0";
+    public const string PluginVersion = "1.0.0";
 
     internal static MeasureTwice Instance;
     internal static ConfigFile ConfigFile;
