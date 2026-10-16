@@ -9,6 +9,8 @@ internal class CustomRuler : MonoBehaviour
     public float m_timeout = 1f;
     private ZNetView m_nview;
     private static bool m_triggerOnPlaced = false;
+    public bool m_horiztonal = false;
+
     public void Awake()
     {
         m_nview = GetComponent<ZNetView>();
@@ -18,6 +20,15 @@ internal class CustomRuler : MonoBehaviour
             ApplyScale();
             InvokeRepeating("DestroyNow", m_timeout, 1f);
         }
+    }
+
+    public float GetLastOriginalLength()
+    {
+        if (m_horiztonal)
+        {
+            return transform.localScale.x;
+        }
+        return transform.localScale.y;
     }
 
     public static void SetTriggerOnPlaced(bool trigger)
@@ -41,7 +52,7 @@ internal class CustomRuler : MonoBehaviour
 
     public void ApplyScale()
     {
-        transform.localScale = ScaleManager.ScaleOnPlaced;
+        transform.localScale = ScaleManager.GetScaleOnPlaced(m_horiztonal);
     }
 
     public void DestroyNow()

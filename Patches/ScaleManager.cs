@@ -6,17 +6,38 @@ namespace MeasureTwice.Patches;
 [HarmonyPatch]
 internal static class ScaleManager
 {
-    private const float MinLength = 0.1f;
-    private const float MaxLength = 2f;
+    public const float MinLength = 0.1f;
+    public const float MaxLength = 10f;
     private const float Tolerance = 0.01f;
 
+    private class RulerInfo
+    {
+        public float LastOriginalLength = 0f;
+        public float LastTotalDelta = 0f;
+        public Vector3 LastGhostScale = Vector3.one;
+
+        public void Reset()
+        {
+            LastOriginalLength = 0f;
+            LastTotalDelta = 0f;
+            LastGhostScale = Vector3.one;   
+        }
+    }
+    private static RulerInfo HorzRulerInfo = new ();
+    private static RulerInfo VertRulerInfo = new();
+    private static RulerInfo ActiveRulerInfo = new();
+
     private static bool SpacerBlockIsInUse = false;
-    private static float LastOriginalLength = 0f;
-    private static float LastTotalDelta = 0f;
-    private static Vector3 LastGhostScale = Vector3.one;
     private static bool DisabledScroll = false;
 
-    public static Vector3 ScaleOnPlaced => LastGhostScale;
+    public static Vector3 GetScaleOnPlaced(bool horiztonal)
+    {
+        if (horiztonal)
+        {
+            return HorzRulerInfo.LastGhostScale;
+        }
+        return VertRulerInfo.LastGhostScale;
+    }
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(Player), nameof(Player.UpdatePlacement))]
@@ -30,11 +51,10 @@ internal static class ScaleManager
         if (!__instance.InPlaceMode() || Hud.IsPieceSelectionVisible())
         {
             if (SpacerBlockIsInUse)
-            {
+            { 
                 SpacerBlockIsInUse = false;
-                LastOriginalLength = 0f;
-                LastTotalDelta = 0f;
-                LastGhostScale = Vector3.zero;
+                VertRulerInfo.Reset();
+                HorzRulerInfo.Reset();
             }
             return;
         }
@@ -42,6 +62,22 @@ internal static class ScaleManager
         if (!IsValidSelectedPiece(__instance, out CustomRuler spacerBlock))
         {
             return;
+        }
+
+        // update that spacer block is in use and cache values
+        if (!SpacerBlockIsInUse && spacerBlock)
+        {
+            SpacerBlockIsInUse = true;
+            if (spacerBlock.m_horiztonal)
+            {
+                HorzRulerInfo.LastOriginalLength = spacerBlock.GetLastOriginalLength();
+                HorzRulerInfo.LastGhostScale = spacerBlock.transform.localScale;
+            }
+            else
+            {
+                VertRulerInfo.LastOriginalLength = spacerBlock.GetLastOriginalLength();
+                VertRulerInfo.LastGhostScale = spacerBlock.transform.localScale;
+            }
         }
 
         if (ShouldModifyLength())
@@ -53,7 +89,7 @@ internal static class ScaleManager
 
         // this is constantly refreshing if FastTools is in use but turns out that bug
         // occurs when using FastTools even without TerrainTools
-        RefreshGhostScale(__instance);
+        RefreshGhostScale(__instance, spacerBlock);
     }
 
     /// <summary>
@@ -106,32 +142,52 @@ internal static class ScaleManager
 
     private static void SetLength(Player player, CustomRuler spacerBlock, float delta)
     {
-        if (!SpacerBlockIsInUse && spacerBlock)
+        if (spacerBlock.m_horiztonal)
         {
-            SpacerBlockIsInUse = true;
-            LastOriginalLength = spacerBlock.transform.localScale.x;
-            LastGhostScale = spacerBlock.transform.localScale;
+            HorzRulerInfo.LastTotalDelta = Mathf.Clamp(
+                HorzRulerInfo.LastTotalDelta + delta,
+                MinLength - HorzRulerInfo.LastOriginalLength,
+                MaxLength - HorzRulerInfo.LastOriginalLength
+            );
+            HorzRulerInfo.LastGhostScale.x = ModifyLength(HorzRulerInfo.LastOriginalLength, HorzRulerInfo.LastTotalDelta);
+            player.Message(MessageHud.MessageType.Center, $"Ruler Length: {HorzRulerInfo.LastGhostScale.x:#,0.000}");
         }
-        LastTotalDelta = Mathf.Clamp(
-            LastTotalDelta + delta,
-            MinLength - LastOriginalLength,
-            MaxLength - LastOriginalLength
-        );
-        LastGhostScale.x = ModifyLength(LastOriginalLength, LastTotalDelta);
-        player.Message(MessageHud.MessageType.Center, $"Spacer Length: {LastGhostScale.x:#,0.000}");
+        else
+        {
+            VertRulerInfo.LastTotalDelta = Mathf.Clamp(
+                VertRulerInfo.LastTotalDelta + delta,
+                MinLength - VertRulerInfo.LastOriginalLength,
+                MaxLength - VertRulerInfo.LastOriginalLength
+            );
+            VertRulerInfo.LastGhostScale.y = ModifyLength(VertRulerInfo.LastOriginalLength, VertRulerInfo.LastTotalDelta);
+            player.Message(MessageHud.MessageType.Center, $"Ruler Length: {VertRulerInfo.LastGhostScale.y:#,0.000}");
+        }        
     }
 
-    private static void RefreshGhostScale(Player player)
+    private static void RefreshGhostScale(Player player, CustomRuler spacerBlock)
     {
-        if (!SpacerBlockIsInUse || !player.m_placementGhost || LastOriginalLength == 0f)
+        if (!SpacerBlockIsInUse || !player.m_placementGhost)
+        {
+            return;
+        }
+     
+        if (spacerBlock.m_horiztonal && HorzRulerInfo.LastOriginalLength > 0.0f) 
+        {
+            ActiveRulerInfo = HorzRulerInfo;
+        }
+        else if (VertRulerInfo.LastOriginalLength > 0.0f)
+        {
+            ActiveRulerInfo = VertRulerInfo;
+        }
+        else
         {
             return;
         }
 
-        float diff = Vector3.Distance(player.m_placementGhost.transform.localScale, LastGhostScale);
+        float diff = Vector3.Distance(player.m_placementGhost.transform.localScale, ActiveRulerInfo.LastGhostScale);
         if (diff > Tolerance)
         {
-            player.m_placementGhost.transform.localScale = LastGhostScale;
+            player.m_placementGhost.transform.localScale = ActiveRulerInfo.LastGhostScale;
         }
     }
 }

@@ -23,15 +23,19 @@ internal sealed class MeasureTwice : BaseUnityPlugin
     public const string PluginName = "MeasureTwice";
     internal const string Author = "Searica";
     public const string PluginGUID = $"{Author}.Valheim.{PluginName}";
-    public const string PluginVersion = "1.0.0";
+    public const string PluginVersion = "1.1.0";
 
     internal static MeasureTwice Instance;
     internal static ConfigFile ConfigFile;
     internal static ConfigFileWatcher ConfigFileWatcher;
 
-    internal CustomPiece SpacerBlockPiece;
-    internal const string SpacerBlockName = "spacer_block";
-    internal const string SpacerBlockPiecceName = "Ruler";
+    internal CustomPiece HorzRulerPiece;
+    internal const string HorzRulerName = "horz_ruler";
+    internal const string HorzRulerPieceName = "Ruler (Horizontal)";
+
+    internal CustomPiece VertRulerPiece;
+    internal const string VertRulerName = "vert_ruler";
+    internal const string VertRulerPieceName = "Ruler (Vertical)";
 
     // Global settings
     internal const string GlobalSection = "Global";
@@ -90,9 +94,9 @@ internal sealed class MeasureTwice : BaseUnityPlugin
         TimedDestruction = Config.BindConfigInOrder(
             GlobalSection,
             "Timed Destroy",
-            20,
+            30,
             "Number of seconds before spacer block self destructs.",
-            acceptableValues: new AcceptableValueRange<int>(1, 30),
+            acceptableValues: new AcceptableValueRange<int>(1, 120),
             synced: false
         );
     }
@@ -104,22 +108,45 @@ internal sealed class MeasureTwice : BaseUnityPlugin
 
     private void AddCustomPieces()
     {
-        GameObject gameObject = PrefabManager.Instance.CreateClonedPrefab(SpacerBlockName, "wood_beam_1");
-        gameObject.AddComponent<CustomRuler>();
-        ZNetView nview = gameObject.GetComponent<ZNetView>();
-        nview.m_persistent = false;  // delete these on save.
+        GameObject horzRuler = PrefabManager.Instance.CreateClonedPrefab(HorzRulerName, "wood_beam_1");
+        horzRuler.transform.localScale = new Vector3(horzRuler.transform.localScale.x, horzRuler.transform.localScale.y *0.5f, horzRuler.transform.localScale.z* 0.5f);
+        CustomRuler horzRulerComp = horzRuler.AddComponent<CustomRuler>();
+        horzRulerComp.m_horiztonal = true;
 
-        PieceConfig pieceConfig = new()
+        ZNetView horzNview = horzRuler.GetComponent<ZNetView>();
+        horzNview.m_persistent = false;  // delete these on save.
+
+        PieceConfig horzRulerPieceConfig = new()
         {
-            Name = SpacerBlockPiecceName,
+            Name = HorzRulerPieceName,
             Category = "Ruler",
             Requirements = new RequirementConfig[] { new RequirementConfig("Wood", 0, 0, false) },
             CraftingStation = CraftingStations.None,
             PieceTable = PieceTables.Hammer
         };
-        SpacerBlockPiece = new CustomPiece(gameObject, true, pieceConfig);
+        HorzRulerPiece = new CustomPiece(horzRuler, true, horzRulerPieceConfig);
 
-        PieceManager.Instance.AddPiece(SpacerBlockPiece);
+        PieceManager.Instance.AddPiece(HorzRulerPiece);
+
+
+        GameObject vertRuler = PrefabManager.Instance.CreateClonedPrefab(VertRulerName, "wood_pole");
+        vertRuler.transform.localScale = new Vector3(vertRuler.transform.localScale.x * 0.5f, vertRuler.transform.localScale.y, vertRuler.transform.localScale.z * 0.5f);
+        CustomRuler vertRulerComp = vertRuler.AddComponent<CustomRuler>();
+        vertRulerComp.m_horiztonal = false;
+        vertRuler.GetComponent<ZNetView>().m_persistent = false;  // delete these on save.
+
+        PieceConfig vertRulerPieceConfig = new()
+        {
+            Name = VertRulerPieceName,
+            Category = "Ruler",
+            Requirements = new RequirementConfig[] { new RequirementConfig("Wood", 0, 0, false) },
+            CraftingStation = CraftingStations.None,
+            PieceTable = PieceTables.Hammer
+        };
+        VertRulerPiece = new CustomPiece(vertRuler, true, vertRulerPieceConfig);
+
+        PieceManager.Instance.AddPiece(VertRulerPiece);
+
 
         PrefabManager.OnVanillaPrefabsAvailable -= AddCustomPieces;
     }
